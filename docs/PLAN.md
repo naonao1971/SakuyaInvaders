@@ -15,14 +15,14 @@
 | ミス | 爆弾に当たると残機 -1（3機、5000点ごとに1UP） |
 | 終わり方 | 3 WAVE 全滅でクリア / 地上まで降りられるか残機0でゲームオーバー |
 | スコア | 30・20・10点 × WAVE数、UFO 500（2回目以降 200）、レーザーのまとめ倒し (体数-1)×50×WAVE、全員救出 5000、WAVE クリア 1000 × WAVE数、クリアボーナス |
-| maxScore | 99999（仮。理論上の最高点を計算して決め直す） |
+| maxScore | 99999（理論上の最高点の見積もりは約6万点。自動操縦のクリアで 42,290 点） |
 | kit | sakuya-kit 0.6.3、`layout: "ab"`、`offline: true`、共通 GAS |
 
 ## まだのこと（本番公開まで）
 
-- [ ] 公開 URL を決める（例 `invaders.naoblock.jp`）と `CNAME`
-- [ ] キービジュアル → `make-assets.mjs` で OGP・アイコン・manifest・`<head>` を作る
-- [ ] maxScore を決めて、スプレッドシートの `_games` の「スコア上限」と合わせる
+- [x] 公開 URL `invaders.naoblock.jp` と `CNAME`
+- [x] OGP・アイコン・manifest・`<head>`（いまはプレイ画面から作った仮の絵。キービジュアルが届いたら差し替える）
+- [ ] スプレッドシートの `_games` に `invaders` の行（スコア上限 99999・総合に含める TRUE）
 - [ ] 演出動画（clear.mp4 / gameover.mp4）を使うか決める
-- [ ] シェアの文言とハッシュタグ
+- [x] シェアの文言とハッシュタグ（#咲耶インベーダー #CNP）
 - [ ] 実機（iPhone・Android）で確認 → GitHub Pages で公開 → `_games` の「総合に含める」を TRUE

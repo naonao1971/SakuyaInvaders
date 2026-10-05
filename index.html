@@ -4,7 +4,33 @@
   <!-- sk:head ここから: scripts/make-assets.mjs（または tools/ogp.html）が書き出す共通の形。手で書き換えない -->
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#06070C" />
+  <!-- ホーム画面に追加したとき、Safari のバーなしの全画面で起動する -->
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="咲耶インベーダー" />
   <title>SAKUYA INVADERS ─ SAVE 11 CNP</title>
+  <meta name="description" content="インベーダーにさらわれたCNP11体を、UFOを撃ち落として救い出せ！ 長押しレーザーで編隊をまとめて撃ち抜くブラウザゲーム" />
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <link rel="manifest" href="manifest.json" />
+  <!-- OGP / Twitter Card（クローラは JavaScript を実行しないので、ここに静的に書く） -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="SAKUYA SERIES" />
+  <meta property="og:title" content="SAKUYA INVADERS ─ SAVE 11 CNP" />
+  <meta property="og:description" content="インベーダーにさらわれたCNP11体を、UFOを撃ち落として救い出せ！ 長押しレーザーで編隊をまとめて撃ち抜くブラウザゲーム" />
+  <meta property="og:url" content="https://invaders.naoblock.jp/" />
+  <meta property="og:image" content="https://invaders.naoblock.jp/ogp.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:locale" content="ja_JP" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="SAKUYA INVADERS ─ SAVE 11 CNP" />
+  <meta name="twitter:description" content="インベーダーにさらわれたCNP11体を、UFOを撃ち落として救い出せ！ 長押しレーザーで編隊をまとめて撃ち抜くブラウザゲーム" />
+  <meta name="twitter:image" content="https://invaders.naoblock.jp/ogp.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/naonao1971/sakuya-kit@0.6.3/kit.css" />
   <!-- sk:head ここまで -->
   <style>
@@ -233,7 +259,9 @@
       },
       share: {
         when: "clear",
-        text: (r) => `SAKUYA INVADERS をクリア！\nスコア ${r.score}\n救出 ${r.rescued.length}/11`,
+        url: "https://invaders.naoblock.jp/",
+        fileName: "sakuya-invaders-clear.png",
+        text: (r) => `咲耶インベーダーをクリア！\nスコア ${r.score}\nCNP 救出 ${r.rescued.length}/11${r.rescued.length === 11 ? "（全員救出！）" : ""}\n#咲耶インベーダー #CNP`,
       },
       help: {
         pc: "← →で移動、X/Spaceでショット（3秒押して離すとレーザー）、Vで自動連射、Mで音（Pキーで一時停止）",
