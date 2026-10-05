@@ -26,6 +26,7 @@
 | | |
 |---|---|
 | `index.html` | ゲーム本体（kit は jsDelivr の `sakuya-kit@0.6.3` から読む） |
+| `keyvisual.jpg` | キービジュアル（タイトル画面・縦持ち案内・OGP の元） |
 | `sw.js` | 機内モードでも遊べるようにする Service Worker（kit の sw-core.js を読むだけ） |
 | `docs/PLAN.md` | 企画書（決まったこと・まだのこと） |
 | `promo/sakuya-invaders-making.mp4` | 「ゲーム、ポン出し。」紹介動画（77秒・1080p） |

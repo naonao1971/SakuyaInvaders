@@ -87,6 +87,8 @@
     const ROW_PTS = [30, 20, 20, 10, 10];
 
     const game = {};
+    const KEY_VISUAL = new Image();
+    KEY_VISUAL.src = "keyvisual.jpg";
 
     function reset() {
       game.wave = 0;
@@ -244,6 +246,9 @@
       cnp: true,
       offline: true, // 機内モードでも遊べるようにする（同じ場所の sw.js が要る）
       lives: { start: 3, extendEvery: 5000 },
+      // 縦持ちの案内にキービジュアルを出す。スタートボタンは咲耶に重ならないよう右下へ
+      orientation: { image: "keyvisual.jpg" },
+      startAnchor: { x: W - 150, y: H - 52 },
       controls: {
         stick: true,
         gyro: false,
@@ -419,6 +424,24 @@
         drawStars(ctx, k);
         k.retro.crt();
 
+        if (k.phase === "title" && KEY_VISUAL.complete && KEY_VISUAL.naturalWidth) {
+          // タイトル画面: キービジュアルを全面に敷き、上に題字、下にお話（走査線は絵の上に重ねない）
+          ctx.drawImage(KEY_VISUAL, 0, 0, W, H);
+          const top = ctx.createLinearGradient(0, 0, 0, 120);
+          top.addColorStop(0, "rgba(6,7,12,0.92)");
+          top.addColorStop(1, "rgba(6,7,12,0)");
+          ctx.fillStyle = top;
+          ctx.fillRect(0, 0, W, 120);
+          k.retro.titleText("SAKUYA INVADERS", "- SAVE 11 CNP -");
+          k.retro.panel(24, H - 92, 330, 68);
+          ctx.font = k.retro.fontBody(15);
+          ctx.textAlign = "left";
+          ctx.fillStyle = colors.ink;
+          ctx.fillText("CNP 11体がインベーダーにさらわれた！", 40, H - 62);
+          ctx.fillStyle = colors.gold;
+          ctx.fillText("UFO を撃ち落として救い出せ", 40, H - 38);
+          return;
+        }
         if (k.phase === "title") {
           k.retro.titleText("SAKUYA INVADERS", "- SAVE 11 CNP -");
           ctx.font = k.retro.fontBody(16);
