@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<style>
+  @font-face { font-family: "NJ"; src: url(../fonts/NotoSansJP-900.ttf); font-weight: 900; }
+  @font-face { font-family: "NJ"; src: url(../fonts/NotoSansJP-700.ttf); font-weight: 700; }
+  @font-face { font-family: "NJ"; src: url(../fonts/NotoSansJP-400.ttf); font-weight: 400; }
+  @font-face { font-family: "Code"; src: url(../fonts/M_PLUS_1_Code_wght_400_.ttf); font-weight: 400; }
+  @font-face { font-family: "Code"; src: url(../fonts/M_PLUS_1_Code_wght_700_.ttf); font-weight: 700; }
+  @font-face { font-family: "Dot"; src: url(../fonts/DotGothic16_.ttf); }
+  :root { --bg: #06070C; --panel: #0E1120; --ink: #E8ECF5; --dim: #7C8BA6; --gold: #E8C56A; --magenta: #FF2D9B; --cyan: #3BD1FF; }
+  html, body { margin: 0; background: var(--bg); }
+  #stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: radial-gradient(ellipse at 50% 40%, #121633 0%, var(--bg) 70%); font-family: "NJ"; color: var(--ink); }
+  .scene { position: absolute; inset: 0; display: none; }
+  .grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(232,197,106,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(232,197,106,.05) 1px, transparent 1px); background-size: 60px 60px; }
+
+  /* タイトル */
+  #title .kicker { position: absolute; top: 300px; width: 100%; text-align: center; font-size: 64px; font-weight: 700; color: var(--ink); }
+  #title .big { position: absolute; top: 400px; width: 100%; text-align: center; font-size: 168px; font-weight: 900; color: var(--gold); letter-spacing: .04em; text-shadow: 0 0 40px rgba(232,197,106,.35); }
+  #title .sub { position: absolute; top: 680px; width: 100%; text-align: center; font-size: 52px; font-weight: 700; }
+  #title .sub b { color: var(--magenta); font-family: "Dot"; font-weight: 400; font-size: 64px; }
+  #title canvas { position: absolute; left: 0; top: 0; }
+
+  /* ターミナル */
+  .term { position: absolute; left: 160px; top: 130px; width: 1600px; height: 780px; background: #0B0D16; border: 2px solid #2A3150; border-radius: 18px; box-shadow: 0 30px 80px rgba(0,0,0,.6); overflow: hidden; }
+  .term .bar { height: 54px; background: #151A2E; display: flex; align-items: center; padding: 0 22px; gap: 12px; font-family: "Code"; font-size: 22px; color: var(--dim); }
+  .dot { width: 16px; height: 16px; border-radius: 50%; display: inline-block; }
+  .term .body { padding: 34px 44px; font-family: "Code"; font-size: 36px; line-height: 1.75; white-space: pre-wrap; }
+  .prompt { color: var(--gold); }
+  .bullet { color: var(--magenta); }
+  .muted { color: var(--dim); }
+  .ok { color: #6EE7A0; }
+  .cursor { display: inline-block; width: 18px; height: 38px; background: var(--ink); vertical-align: -6px; }
+  .inputbox { border: 2px solid #3A4266; border-radius: 12px; padding: 14px 22px; margin-bottom: 26px; }
+
+  /* エディタ */
+  #code .editor { position: absolute; left: 80px; top: 90px; width: 1100px; height: 900px; background: #0B0D16; border: 2px solid #2A3150; border-radius: 18px; overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,.6); }
+  #code .editor .bar { height: 54px; background: #151A2E; display: flex; align-items: center; padding: 0 22px; gap: 12px; font-family: "Code"; font-size: 22px; color: var(--dim); }
+  #code pre { margin: 0; padding: 18px 0; font-family: "Code"; font-size: 21px; line-height: 1.5; color: #C9D1E4; position: absolute; left: 0; right: 0; top: 54px; }
+  #code pre .ln { display: inline-block; width: 64px; text-align: right; padding-right: 22px; color: #3E4767; }
+  .k { color: #FF7AC3; } .s { color: #E8C56A; } .c { color: #5C6A8A; font-style: italic; } .n { color: #3BD1FF; } .f { color: #9FE3FF; }
+  #code .side { position: absolute; left: 1240px; top: 110px; width: 600px; }
+  #code .side h2 { margin: 0 0 26px; font-size: 44px; font-weight: 900; color: var(--gold); }
+  #code .side .item { font-size: 34px; font-weight: 700; margin: 0 0 14px; opacity: 0; transform: translateX(30px); }
+  #code .side .item .chk { display: inline-block; width: 46px; color: #6EE7A0; }
+  #code .side .mine { margin-top: 36px; padding: 22px 26px; border: 3px solid var(--magenta); border-radius: 16px; font-size: 36px; font-weight: 900; }
+  #code .side .mine small { display: block; font-size: 26px; font-weight: 400; color: var(--dim); margin-top: 6px; }
+  .badge { position: absolute; right: 60px; top: 40px; padding: 10px 26px; border-radius: 999px; background: var(--magenta); color: #fff; font-size: 34px; font-weight: 900; letter-spacing: .05em; }
+  #counter { font-family: "Code"; font-weight: 700; color: var(--cyan); }
+
+  /* ブラウザ */
+  .browser { position: absolute; left: 210px; top: 60px; width: 1500px; height: 904px; background: #0B0D16; border: 2px solid #2A3150; border-radius: 18px; overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,.6); }
+  .browser .bar { height: 60px; background: #151A2E; display: flex; align-items: center; padding: 0 22px; gap: 12px; }
+  .browser .url { margin-left: 24px; flex: 1; height: 38px; border-radius: 19px; background: #0B0D16; color: var(--dim); font-family: "Code"; font-size: 22px; display: flex; align-items: center; padding: 0 20px; }
+  .browser img { position: absolute; left: 30px; top: 74px; width: 1440px; height: 810px; }
+  .cap { position: absolute; left: 0; right: 0; bottom: 34px; text-align: center; font-size: 66px; font-weight: 900; color: #fff; -webkit-text-stroke: 14px #06070C; paint-order: stroke fill; letter-spacing: .02em; }
+  .cap em { font-style: normal; color: var(--gold); }
+  .cap .m { color: var(--magenta); }
+  .tag { position: absolute; left: 60px; top: 30px; padding: 8px 22px; border: 3px solid var(--gold); border-radius: 12px; color: var(--gold); font-size: 30px; font-weight: 900; background: rgba(6,7,12,.8); }
+  .big-center { position: absolute; left: 0; right: 0; top: 380px; text-align: center; font-size: 200px; font-weight: 900; color: var(--gold); -webkit-text-stroke: 20px #06070C; paint-order: stroke fill; }
+
+  /* スマホ */
+  .phone { position: absolute; left: 160px; top: 170px; width: 1600px; height: 740px; background: #000; border-radius: 90px; border: 14px solid #22263A; box-shadow: 0 30px 80px rgba(0,0,0,.6), inset 0 0 0 4px #3A4060; overflow: hidden; }
+  .phone img { position: absolute; left: 34px; top: 0; width: 1504px; height: 694px; object-fit: cover; }
+  .finger { position: absolute; width: 90px; height: 90px; border-radius: 50%; background: rgba(255,255,255,.28); border: 4px solid rgba(255,255,255,.7); }
+
+  /* おわり */
+  #end .h { position: absolute; top: 120px; width: 100%; text-align: center; font-size: 72px; font-weight: 900; }
+  #end .row { position: absolute; left: 330px; width: 1260px; display: flex; justify-content: space-between; align-items: baseline; font-size: 48px; font-weight: 700; border-bottom: 2px solid #2A3150; padding: 16px 0; opacity: 0; }
+  #end .row b { font-size: 70px; font-weight: 900; color: var(--gold); }
+  #end .row b.m { color: var(--magenta); }
+  #end .logo { position: absolute; top: 800px; width: 100%; text-align: center; font-family: "Dot"; font-size: 110px; color: var(--gold); letter-spacing: .06em; }
+  #end .logo small { display: block; font-size: 44px; color: var(--magenta); }
+  #end .note { position: absolute; bottom: 24px; width: 100%; text-align: center; font-size: 22px; color: var(--dim); }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="grid"></div>
+
+  <div class="scene" id="title">
+    <canvas id="tcv" width="1920" height="1080"></canvas>
+    <div class="kicker">咲耶ゲームkitで</div>
+    <div class="big">ゲーム、ポン出し。</div>
+    <div class="sub">今日のお題：<b>咲耶インベーダー</b></div>
+  </div>
+
+  <div class="scene" id="ask">
+    <div class="term"><div class="bar"><span class="dot" style="background:#FF5F57"></span><span class="dot" style="background:#FEBC2E"></span><span class="dot" style="background:#28C840"></span>&nbsp;&nbsp;Claude Code — sakuya-invaders</div>
+      <div class="body" id="askBody"></div></div>
+    <div class="cap" id="askCap"></div>
+  </div>
+
+  <div class="scene" id="code">
+    <div class="editor"><div class="bar"><span class="dot" style="background:#FF5F57"></span><span class="dot" style="background:#FEBC2E"></span><span class="dot" style="background:#28C840"></span>&nbsp;&nbsp;sakuya-invaders / index.html</div><pre id="pre"></pre></div>
+    <div class="side">
+      <h2>kit におまかせ</h2>
+      <div class="item"><span class="chk">✓</span>スティック・ボタン操作</div>
+      <div class="item"><span class="chk">✓</span>スタート・ポーズ</div>
+      <div class="item"><span class="chk">✓</span>スコア・残機・1UP</div>
+      <div class="item"><span class="chk">✓</span>HUD・CNP 11体の絵</div>
+      <div class="item"><span class="chk">✓</span>効果音・ミュート</div>
+      <div class="item"><span class="chk">✓</span>結果画面・ランキング</div>
+      <div class="item"><span class="chk">✓</span>縦持ち案内・全画面</div>
+      <div class="mine" id="mine">書くのは「遊びの中身」だけ<small>update() と render() ・ <span id="counter">0</span> 行</small></div>
+    </div>
+    <div class="badge">▶▶ 早送り</div>
+  </div>
+
+  <div class="scene" id="test">
+    <div class="term"><div class="bar"><span class="dot" style="background:#FF5F57"></span><span class="dot" style="background:#FEBC2E"></span><span class="dot" style="background:#28C840"></span>&nbsp;&nbsp;kit 付属の自動プレイテスト</div>
+      <div class="body" id="testBody" style="font-size:30px"></div></div>
+    <div class="cap" id="testCap"></div>
+  </div>
+
+  <div class="scene" id="play">
+    <div class="browser"><div class="bar"><span class="dot" style="background:#FF5F57"></span><span class="dot" style="background:#FEBC2E"></span><span class="dot" style="background:#28C840"></span><div class="url">sakuya-invaders/index.html</div></div><img id="playImg" /></div>
+    <div class="tag" id="playTag">実際のプレイ画面</div>
+    <div class="big-center" id="playBig"></div>
+    <div class="cap" id="playCap"></div>
+  </div>
+
+  <div class="scene" id="mobile">
+    <div class="phone"><img id="mobImg" /></div>
+    <div class="tag">スマホ横持ち</div>
+    <div class="cap" id="mobCap"></div>
+  </div>
+
+  <div class="scene" id="end">
+    <div class="h">こんなに簡単。</div>
+    <div class="row" style="top:290px"><span>お願いした言葉</span><b>1行</b></div>
+    <div class="row" style="top:410px"><span>書いたゲームの中身</span><b id="endLines">約320行</b></div>
+    <div class="row" style="top:530px"><span>操作・HUD・ランキング・結果画面</span><b class="m">0行（kit）</b></div>
+    <div class="row" style="top:650px"><span>ビルド・インストール</span><b>不要</b></div>
+    <div class="logo">SAKUYA INVADERS<small>- SAVE 11 CNP -</small></div>
+    <div class="note">本作は CryptoNinja / CryptoNinja Partners の非公式ファンアートです ・ 咲耶ゲームフレームワーク（sakuya-kit）使用</div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const ease = (x) => 1 - Math.pow(1 - clamp(x), 3);
+const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+// ---- タイムライン ----
+const PLAY = [
+  { dir: "s0", n: 90, cap: "", big: "できあがり！", tag: "完成" },
+  { dir: "s1", n: 240, cap: "スタートしたら、<em>すぐ遊べる</em>" },
+  { dir: "s2", n: 120, cap: "UFOを撃つと <span class='m'>CNPを救出！</span>" },
+  { dir: "s3", n: 150, cap: "全滅させると <em>次のWAVEへ</em>" },
+  { dir: "s4", n: 150, cap: "どんどん速くなる <span class='m'>最終WAVE</span>" },
+  { dir: "s5", n: 384, cap: "3WAVE守り切って <em>CLEAR！</em>" },
+];
+const T = { title: 0, ask: 4, code: 10, test: 22, play: 26 };
+let acc = T.play;
+for (const p of PLAY) { p.t0 = acc; acc += p.n / 30; }
+T.mobile = acc; T.end = acc + 7; T.total = T.end + 6.5;
+window.TIMELINE = { T, PLAY };
+
+// ---- タイトルのインベーダー ----
+const SPR = ["00100100", "10011001", "10111101", "11011011", "11111111", "01111110", "00100100", "01000010"];
+function drawTitle(t) {
+  const c = $("tcv").getContext("2d");
+  c.clearRect(0, 0, 1920, 1080);
+  for (let i = 0; i < 9; i++) {
+    const x = 180 + i * 195 + Math.sin(t * 2 + i) * 6, y = 150 + ((i % 2) * 20) + Math.floor(t * 2) % 2 * 6;
+    c.fillStyle = i % 3 === 0 ? "#FF2D9B" : "rgba(232,236,245,.85)";
+    SPR.forEach((r, yy) => [...r].forEach((v, xx) => v === "1" && c.fillRect(x + xx * 9, y + yy * 9, 9, 9)));
+  }
+  // 砲台と弾
+  const sx = 960 + Math.sin(t * 1.3) * 500;
+  c.fillStyle = "#FF2D9B"; c.fillRect(sx - 45, 960, 90, 22); c.fillRect(sx - 34, 948, 68, 12);
+  c.fillStyle = "#E8C56A"; c.fillRect(sx - 6, 924, 12, 24);
+  for (let k = 0; k < 3; k++) { const by = 900 - ((t * 900 + k * 300) % 140); c.fillRect(960 + Math.sin((t - (900 - by) / 900) * 1.3) * 500 - 3, by, 6, 26); }
+}
+
+// ---- ターミナル（依頼） ----
+const PROMPT = "咲耶ゲームkitで咲耶インベーダー作って";
+function renderAsk(t) {
+  const lt = t - T.ask;
+  const typed = PROMPT.slice(0, Math.floor(clamp((lt - 0.4) / 2.2) * PROMPT.length));
+  let h = `<div class="inputbox"><span class="prompt">&gt; </span>${esc(typed)}${lt < 2.9 && Math.floor(lt * 3) % 2 === 0 ? '<span class="cursor"></span>' : ""}</div>`;
+  if (lt > 3.0) h += `<span class="prompt">&gt; </span>${PROMPT}\n\n`;
+  if (lt > 3.4) h += `<span class="bullet">●</span> sakuya-kit の説明書とテンプレートを読みます\n`;
+  if (lt > 3.9) h += `  <span class="muted">⎿  Read README.md ・ starter/index.html</span>\n`;
+  if (lt > 4.5) h += `<span class="bullet">●</span> 咲耶インベーダーを書きます\n  <span class="muted">（編隊・UFO・シールド・3WAVE・CNP救出）</span>\n`;
+  if (lt > 5.3) h += `  <span class="muted">⎿  Write sakuya-invaders/index.html</span>`;
+  if (lt > 3.0) h = h.replace(/<div class="inputbox">[\s\S]*?<\/div>/, "");
+  $("askBody").innerHTML = h;
+  $("askCap").innerHTML = lt > 0.6 ? "お願いは <em>この1行</em> だけ" : "";
+}
+
+// ---- コード ----
+let CODE = [];
+function hl(line) {
+  let s = esc(line);
+  if (/^\s*\/\//.test(line)) return `<span class="c">${s}</span>`;
+  s = s.replace(/("[^"]*"|`[^`]*`)/g, '<span class="s">$1</span>');
+  s = s.replace(/\b(const|let|function|return|if|else|for|of|new|true|false|import|from|while)\b(?![^<]*<\/span>)/g, '<span class="k">$1</span>');
+  s = s.replace(/\b(\d+(\.\d+)?)\b(?![^<]*<\/span>)/g, '<span class="n">$1</span>');
+  s = s.replace(/(\/\/ .*)$/, '<span class="c">$1</span>');
+  return s;
+}
+let HL = [];
+const VIS = 34;
+function renderCode(t) {
+  const lt = t - T.code;
+  const p = clamp((lt - 0.3) / 10.4);
+  const shown = Math.floor(p * CODE.length);
+  const start = Math.max(0, shown - VIS + 4);
+  let out = "";
+  for (let i = start; i < Math.min(CODE.length, start + VIS); i++) {
+    if (i >= shown) break;
+    out += `<span class="ln">${i + 1}</span>${HL[i]}\n`;
+  }
+  if (shown < CODE.length) out += `<span class="ln">${shown + 1}</span><span class="cursor" style="height:24px;width:11px;vertical-align:-4px"></span>`;
+  $("pre").innerHTML = out;
+  document.querySelectorAll("#code .item").forEach((el, i) => {
+    const a = ease((lt - 0.8 - i * 0.9) / 0.5);
+    el.style.opacity = a; el.style.transform = `translateX(${(1 - a) * 30}px)`;
+  });
+  const gameLines = window.GAME_LINES || 320;
+  $("counter").textContent = Math.floor(gameLines * p);
+  $("mine").style.opacity = ease((lt - 7.6) / 0.5);
+}
+
+// ---- テスト ----
+const TEST = [
+  ["$ node playtest.mjs --game sakuya-invaders", "prompt"],
+  ["PC スタート後: phase=playing  lives=3", ""],
+  ["PC P で一時停止: true", ""],
+  ["PC GAME OVER → 再スタート → CLEAR", ""],
+  ["スマホ スタート後: playing  ボタン数: 3", ""],
+  ["スマホ スティック右: axis.x = 0.5", ""],
+  ["スマホ 縦持ちで止まる: true", ""],
+];
+function renderTest(t) {
+  const lt = t - T.test;
+  let h = "";
+  TEST.forEach(([l, cls], i) => { if (lt > 0.3 + i * 0.35) h += `<span class="${cls === "prompt" ? "prompt" : "muted"}">${esc(l)}</span>\n`; });
+  if (lt > 0.3 + TEST.length * 0.35 + 0.2) h += `\n<span class="ok" style="font-size:72px;font-weight:700">OK ✓</span>`;
+  $("testBody").innerHTML = h;
+  $("testCap").innerHTML = lt > 0.5 ? "PCもスマホも <em>自動でテスト</em>" : "";
+}
+
+// ---- プレイ ----
+function setImg(el, src) {
+  if (el.getAttribute("src") === src) return Promise.resolve();
+  el.setAttribute("src", src);
+  return el.decode().catch(() => {});
+}
+function renderPlay(t) {
+  let seg = PLAY[0];
+  for (const p of PLAY) if (t >= p.t0) seg = p;
+  const f = clamp(Math.floor((t - seg.t0) * 30), 0, seg.n - 1) + 1;
+  const lt = t - seg.t0;
+  $("playCap").innerHTML = seg.cap;
+  $("playTag").textContent = seg.tag || "実際のプレイ画面（自動操縦）";
+  const big = $("playBig");
+  big.textContent = seg.big || "";
+  big.style.opacity = seg.big ? clamp(lt / 0.2) * clamp((2.6 - lt) / 0.3) : 0;
+  big.style.transform = `scale(${0.85 + 0.15 * ease(lt / 0.35)})`;
+  return setImg($("playImg"), `seg/${seg.dir}/${String(f).padStart(4, "0")}.jpg`);
+}
+function renderMobile(t) {
+  const lt = t - T.mobile;
+  const f = clamp(Math.floor(lt * 30), 0, 209) + 1;
+  $("mobCap").innerHTML = "スマホの <em>スティック・Aボタン</em> も kit が自動で";
+  return setImg($("mobImg"), `seg/m/${String(f).padStart(4, "0")}.jpg`);
+}
+function renderEnd(t) {
+  const lt = t - T.end;
+  document.querySelectorAll("#end .row").forEach((el, i) => {
+    const a = ease((lt - 0.4 - i * 0.45) / 0.4);
+    el.style.opacity = a; el.style.transform = `translateY(${(1 - a) * 20}px)`;
+  });
+  $("end").querySelector(".logo").style.opacity = ease((lt - 2.6) / 0.6);
+}
+
+// ---- フェード ----
+function fade(id, t, t0, t1) {
+  const el = $(id);
+  const on = t >= t0 && t < t1;
+  el.style.display = on ? "block" : "none";
+  if (on) el.style.opacity = clamp((t - t0) / 0.25) * clamp((t1 - t) / 0.25);
+}
+
+window.render = async (t) => {
+  fade("title", t, T.title, T.ask);
+  fade("ask", t, T.ask, T.code);
+  fade("code", t, T.code, T.test);
+  fade("test", t, T.test, T.play);
+  fade("play", t, T.play, T.mobile);
+  fade("mobile", t, T.mobile, T.end);
+  fade("end", t, T.end, T.total + 1);
+  if (t < T.ask) drawTitle(t);
+  else if (t < T.code) renderAsk(t);
+  else if (t < T.test) renderCode(t);
+  else if (t < T.play) renderTest(t);
+  else if (t < T.mobile) await renderPlay(t);
+  else if (t < T.end) await renderMobile(t);
+  else renderEnd(t);
+};
+
+window.ready = (async () => {
+  const src = await (await fetch("../sakuya-invaders/index.html")).text();
+  const lines = src.split("\n");
+  const from = lines.findIndex((l) => l.includes("===== 咲耶インベーダー"));
+  const to = lines.findIndex((l, i) => i > from && l.includes("<\/script>"));
+  CODE = lines.slice(from, to).map((l) => l.replace(/^ {4}/, ""));
+  window.GAME_LINES = CODE.filter((l) => l.trim()).length;
+  $("endLines").textContent = `約${Math.round(window.GAME_LINES / 10) * 10}行`;
+  HL = CODE.map(hl);
+  await document.fonts.load('900 40px "NJ"'); await document.fonts.load('700 40px "NJ"'); await document.fonts.load('400 40px "NJ"');
+  await document.fonts.load('400 20px "Code"'); await document.fonts.load('700 20px "Code"'); await document.fonts.load('40px "Dot"');
+  return T.total;
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <!-- sk:head ここから: scripts/make-assets.mjs（または tools/ogp.html）が書き出す共通の形。手で書き換えない -->
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>SAKUYA INVADERS ─ SAVE 11 CNP</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/naonao1971/sakuya-kit@0.6.3/kit.css" />
+  <!-- sk:head ここまで -->
+  <style>
+    .sk-how { width: min(92vw, 720px); box-sizing: border-box; color: var(--ink); font-size: 12.5px; line-height: 1.8; opacity: 0.85; }
+    .sk-how summary { cursor: pointer; color: var(--gold); font-family: var(--font-display); font-size: 11px; text-align: center; list-style: none; }
+    .sk-how ul { margin: 8px 0 0; padding-left: 1.2em; }
+    .sk-how a { color: var(--gold); }
+  </style>
+</head>
+<body>
+  <div class="sk-wrap">
+    <canvas id="game" width="960" height="540" aria-label="ゲーム画面"></canvas>
+  </div>
+  <details class="sk-how" id="how">
+    <summary>遊び方</summary>
+    <ul>
+      <li>攻めてくるインベーダーを撃ち落とせ！ 上を飛ぶ UFO を撃つと、さらわれた CNP を救出できる</li>
+      <li>3 WAVE 守り切ればクリア。インベーダーが地上まで降りてきたらおしまい</li>
+      <li>スマホ: 左半分を押したまま左右に倒して移動 ・ A でショット ・ ⚙ で音・全画面・自動連射の設定</li>
+      <li>PC: ← → / A D で移動 ・ X / Space でショット ・ V 自動連射 ・ P 一時停止 ・ M 音</li>
+    </ul>
+  </details>
+
+  <script type="module">
+    import { createKit } from "https://cdn.jsdelivr.net/gh/naonao1971/sakuya-kit@0.6.3/kit.js";
+
+    // ===== 咲耶インベーダー =====
+    // 編隊を撃ち落とし、UFO にさらわれた CNP を救出する。3 WAVE でクリア。
+    const W = 960, H = 540;
+    const COLS = 11, ROWS = 5, CELL_W = 52, CELL_H = 38, PX = 3;
+    const GROUND = 500, WAVES = 3;
+
+    // 8x8 の2コマ。1 = 点
+    const SPRITES = {
+      squid: [
+        ["00011000", "00111100", "01111110", "11011011", "11111111", "00100100", "01011010", "10100101"],
+        ["00011000", "00111100", "01111110", "11011011", "11111111", "01011010", "10000001", "01000010"],
+      ],
+      crab: [
+        ["00100100", "10011001", "10111101", "11011011", "11111111", "01111110", "00100100", "01000010"],
+        ["00100100", "00011000", "00111100", "01011010", "11111111", "10111101", "10100101", "00100100"],
+      ],
+      octo: [
+        ["00111100", "01111110", "11111111", "11011011", "11111111", "00100100", "01011010", "11000011"],
+        ["00111100", "01111110", "11111111", "11011011", "11111111", "01100110", "11011011", "00100100"],
+      ],
+    };
+    const ROW_KIND = ["squid", "crab", "crab", "octo", "octo"];
+    const ROW_PTS = [30, 20, 20, 10, 10];
+
+    const game = {};
+
+    function reset() {
+      game.wave = 0;
+      game.shots = [];
+      game.bombs = [];
+      game.sparks = [];
+      game.ufo = null;
+      game.ufoTimer = 600;
+      game.ship = { x: W / 2, inv: 0, dead: 0 };
+      game.shields = makeShields();
+      nextWave();
+    }
+
+    function nextWave() {
+      game.wave++;
+      game.banner = 120;
+      game.dir = 1;
+      game.stepTimer = 0;
+      game.anim = 0;
+      game.inv = [];
+      const top = 110 + (game.wave - 1) * 20;
+      for (let r = 0; r < ROWS; r++)
+        for (let c = 0; c < COLS; c++)
+          game.inv.push({ r, c, x: 190 + c * CELL_W, y: top + r * CELL_H, alive: true });
+      game.bombs.length = 0;
+    }
+
+    function makeShields() {
+      const out = [];
+      const shape = ["0011111100", "0111111110", "1111111111", "1111111111", "1110000111", "1100000011"];
+      for (let i = 0; i < 4; i++) {
+        const bx = 150 + i * 200, by = 420;
+        shape.forEach((row, y) => [...row].forEach((v, x) => {
+          if (v === "1") out.push({ x: bx + x * 8, y: by + y * 6, hp: 2 });
+        }));
+      }
+      return out;
+    }
+
+    function fire() {
+      const s = game.ship;
+      if (!s || s.dead || game.shots.length >= 2) return;
+      game.shots.push({ x: s.x, y: GROUND - 22 });
+      kit.sfx.shot();
+    }
+
+    function burst(x, y, color, n = 14) {
+      for (let i = 0; i < n; i++) {
+        const a = Math.random() * Math.PI * 2, v = 1 + Math.random() * 3;
+        game.sparks.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 30, color });
+      }
+    }
+
+    function hitShield(b) {
+      const blk = game.shields.find((s) => s.hp > 0 && b.x > s.x - 2 && b.x < s.x + 10 && b.y > s.y - 4 && b.y < s.y + 8);
+      if (blk) blk.hp--;
+      return !!blk;
+    }
+
+    const kit = createKit({
+      gameId: "invaders",
+      title: "SAKUYA INVADERS",
+      subtitle: "- SAVE 11 CNP -",
+      // 咲耶シリーズ共通のランキング（sakuya-kit/gas/apps-script.gs）。新しい GAS は作らない
+      gasUrl: "https://script.google.com/macros/s/AKfycby-UoKAfHw4eBULVb37tQzwPEhNm65B_HUktd9Sh0ZxMdOdmnRHdub0NeeXUCAqg8bG/exec",
+      maxScore: 99999,
+      cnp: true,
+      offline: true, // 機内モードでも遊べるようにする（同じ場所の sw.js が要る）
+      lives: { start: 3, extendEvery: 5000 },
+      controls: {
+        stick: true,
+        gyro: false,
+        layout: "ab",
+        keys: { left: ["ArrowLeft", "KeyA"], right: ["ArrowRight", "KeyD"], up: [], down: [] },
+        buttons: [
+          { id: "fire", slot: "A", hint: "SHOT", ariaLabel: "ショット", keys: ["KeyX", "Space"], onPress: () => fire() },
+        ],
+        autoFire: { interval: 14, onFire: () => fire() },
+      },
+      share: {
+        when: "clear",
+        text: (r) => `SAKUYA INVADERS をクリア！\nスコア ${r.score}\n救出 ${r.rescued.length}/11`,
+      },
+      help: { pc: "← →で移動、X/Spaceでショット、Vで自動連射、Mで音（Pキーで一時停止）" },
+
+      onStart: reset,
+      onExtend: () => kit.sfx.bonus(),
+
+      update(k) {
+        const s = game.ship;
+        if (game.banner > 0) game.banner--;
+
+        // 自機
+        if (s.dead > 0) {
+          if (--s.dead === 0) { s.x = W / 2; s.inv = 120; }
+        } else {
+          s.x = Math.max(40, Math.min(W - 40, s.x + k.input.axis().x * 6));
+          if (s.inv > 0) s.inv--;
+        }
+
+        // 編隊: 数が減るほど速くなる
+        const alive = game.inv.filter((e) => e.alive);
+        const interval = Math.max(2, Math.floor(alive.length / 2.2) + 4 - game.wave * 2);
+        if (++game.stepTimer >= interval) {
+          game.stepTimer = 0;
+          game.anim ^= 1;
+          const minX = Math.min(...alive.map((e) => e.x)), maxX = Math.max(...alive.map((e) => e.x));
+          if ((game.dir > 0 && maxX + 30 > W - 20) || (game.dir < 0 && minX - 30 < 20)) {
+            game.dir *= -1;
+            for (const e of alive) e.y += 16;
+          } else {
+            for (const e of alive) e.x += game.dir * 9;
+          }
+          k.sfx.tone({ freq: game.anim ? 90 : 70, dur: 0.05, gain: 0.05 });
+        }
+
+        // 爆弾: 各列のいちばん下から落とす
+        if (alive.length && Math.random() < 0.012 + game.wave * 0.008) {
+          const shooter = alive[Math.floor(Math.random() * alive.length)];
+          const low = alive.filter((e) => e.c === shooter.c).reduce((a, b) => (a.y > b.y ? a : b));
+          game.bombs.push({ x: low.x, y: low.y + 14, t: 0 });
+        }
+
+        // UFO（CNP をさらって飛んでいる）
+        if (!game.ufo && --game.ufoTimer <= 0) {
+          const dir = Math.random() < 0.5 ? 1 : -1;
+          game.ufo = { x: dir > 0 ? -40 : W + 40, y: 78, dir, ch: k.cnp.run.pick() };
+          game.ufoTimer = 700 + Math.random() * 400;
+        }
+        if (game.ufo) {
+          game.ufo.x += game.ufo.dir * 2.2;
+          if (game.ufo.x < -60 || game.ufo.x > W + 60) game.ufo = null;
+        }
+
+        // 自機の弾
+        for (const b of game.shots) b.y -= 12;
+        game.shots = game.shots.filter((b) => {
+          if (b.y < 40) return false;
+          if (hitShield(b)) return false;
+          const e = alive.find((e) => e.alive && Math.abs(e.x - b.x) < 16 && Math.abs(e.y - b.y) < 14);
+          if (e) {
+            e.alive = false;
+            k.score.add(ROW_PTS[e.r] * game.wave);
+            burst(e.x, e.y, e.r === 0 ? k.retro.colors.magenta : k.retro.colors.ink);
+            k.sfx.hit();
+            return false;
+          }
+          const u = game.ufo;
+          if (u && Math.abs(u.x - b.x) < 34 && Math.abs(u.y - b.y) < 24) {
+            const first = k.cnp.run.collect(u.ch.no);
+            k.score.add(first ? 500 : 200);
+            burst(u.x, u.y, k.retro.colors.gold, 30);
+            game.rescue = { ch: u.ch, x: u.x, y: u.y, t: 70 };
+            game.ufo = null;
+            k.sfx.pickup();
+            return false;
+          }
+          return true;
+        });
+
+        // 爆弾
+        for (const b of game.bombs) { b.y += 3.2 + game.wave * 0.5; b.t++; }
+        game.bombs = game.bombs.filter((b) => {
+          if (b.y > GROUND + 20) return false;
+          if (hitShield(b)) return false;
+          if (!s.dead && !s.inv && Math.abs(b.x - s.x) < 22 && b.y > GROUND - 18 && b.y < GROUND + 10) {
+            miss();
+            return false;
+          }
+          return true;
+        });
+
+        // 降りてきたら食べられて終わり
+        for (const e of alive) {
+          for (const sh of game.shields) if (sh.hp > 0 && Math.abs(sh.x - e.x) < 20 && Math.abs(sh.y - e.y) < 14) sh.hp = 0;
+          if (e.y > GROUND - 30) return end(false);
+        }
+
+        for (const p of game.sparks) { p.x += p.vx; p.y += p.vy; p.vy += 0.05; p.t--; }
+        game.sparks = game.sparks.filter((p) => p.t > 0);
+        if (game.rescue && --game.rescue.t <= 0) game.rescue = null;
+
+        // 全滅させたら次の WAVE
+        if (!alive.length) {
+          k.score.add(1000 * game.wave);
+          k.sfx.stage();
+          if (game.wave >= WAVES) {
+            k.score.add(k.lives.value * 1000 + k.cnp.run.count * 300);
+            return end(true);
+          }
+          nextWave();
+        }
+      },
+
+      render(ctx, k) {
+        const { colors } = k.retro;
+        ctx.fillStyle = colors.bg;
+        ctx.fillRect(0, 0, W, H);
+        drawStars(ctx, k);
+        k.retro.crt();
+
+        if (k.phase === "title") {
+          k.retro.titleText("SAKUYA INVADERS", "- SAVE 11 CNP -");
+          ctx.font = k.retro.fontBody(16);
+          ctx.fillStyle = colors.ink;
+          ctx.textAlign = "center";
+          ctx.fillText("CNP 11体がインベーダーにさらわれた！", W / 2, 200);
+          ctx.fillStyle = colors.gold;
+          ctx.fillText("UFO を撃ち落として救い出せ", W / 2, 230);
+          ["squid", "crab", "octo"].forEach((kind, i) => {
+            drawSprite(ctx, kind, Math.floor(k.frame / 30) % 2, 380 + i * 100, 330, i === 0 ? colors.magenta : colors.ink);
+            ctx.font = k.retro.font(10);
+            ctx.fillStyle = colors.dim;
+            ctx.textAlign = "center";
+            ctx.fillText(`${[30, 20, 10][i]} PTS`, 380 + i * 100, 368);
+          });
+          k.cnp.chars.forEach((ch, i) => k.cnp.draw(ctx, ch, 130 + i * 70, 420, 44));
+          ctx.textAlign = "left";
+          return;
+        }
+
+        // 地面
+        ctx.fillStyle = colors.gold;
+        ctx.fillRect(20, GROUND + 18, W - 40, 2);
+
+        // シールド
+        for (const sh of game.shields) {
+          if (sh.hp <= 0) continue;
+          ctx.fillStyle = sh.hp === 2 ? colors.gold : k.retro.alpha(colors.gold, 0.45);
+          ctx.fillRect(sh.x, sh.y, 8, 6);
+        }
+
+        // 編隊
+        for (const e of game.inv) {
+          if (!e.alive) continue;
+          drawSprite(ctx, ROW_KIND[e.r], game.anim, e.x, e.y, e.r === 0 ? colors.magenta : colors.ink);
+        }
+
+        // UFO と、さらわれた CNP
+        const u = game.ufo;
+        if (u) {
+          k.cnp.draw(ctx, u.ch, u.x, u.y - 6, 40);
+          ctx.fillStyle = colors.danger || colors.magenta;
+          ctx.beginPath();
+          ctx.ellipse(u.x, u.y + 14, 34, 9, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = colors.gold;
+          for (let i = -2; i <= 2; i++) if ((k.frame >> 3) % 5 !== i + 2) ctx.fillRect(u.x + i * 12 - 2, u.y + 12, 4, 4);
+        }
+        if (game.rescue) {
+          const r = game.rescue;
+          k.cnp.draw(ctx, r.ch, r.x, r.y - (70 - r.t) * 0.6, 48);
+          ctx.font = k.retro.font(11);
+          ctx.fillStyle = colors.gold;
+          ctx.textAlign = "center";
+          ctx.fillText(`RESCUE ${r.ch.label}!`, r.x, r.y + 30 - (70 - r.t) * 0.6);
+          ctx.textAlign = "left";
+        }
+
+        // 弾
+        ctx.fillStyle = colors.gold;
+        for (const b of game.shots) ctx.fillRect(b.x - 1.5, b.y - 8, 3, 14);
+        ctx.fillStyle = colors.magenta;
+        for (const b of game.bombs) {
+          const zig = (b.t >> 2) % 2 ? 3 : -3;
+          ctx.fillRect(b.x - 2 + zig, b.y - 6, 4, 4);
+          ctx.fillRect(b.x - 2 - zig, b.y - 2, 4, 4);
+          ctx.fillRect(b.x - 2 + zig, b.y + 2, 4, 4);
+        }
+
+        // 火花
+        for (const p of game.sparks) {
+          ctx.fillStyle = k.retro.alpha(p.color, p.t / 30);
+          ctx.fillRect(p.x - 2, p.y - 2, 4, 4);
+        }
+
+        // 咲耶の砲台
+        const s = game.ship;
+        if (!s.dead && !(s.inv > 0 && k.frame % 8 < 4)) drawShip(ctx, k, s.x, GROUND);
+
+        k.hud.score();
+        k.hud.roster();
+        k.hud.lives();
+        ctx.font = k.retro.font(10);
+        ctx.fillStyle = colors.dim;
+        ctx.textAlign = "right";
+        ctx.fillText(`WAVE ${game.wave}/${WAVES}`, W - 16, 80);
+        ctx.textAlign = "left";
+
+        if (game.banner > 0 && k.phase === "playing") k.retro.caption(`WAVE ${game.wave}`, game.wave === WAVES ? "最終WAVE！" : "UFO を撃って CNP を救出しよう");
+      },
+    });
+
+    function drawSprite(ctx, kind, frame, cx, cy, color) {
+      const rows = SPRITES[kind][frame];
+      ctx.fillStyle = color;
+      for (let y = 0; y < 8; y++)
+        for (let x = 0; x < 8; x++)
+          if (rows[y][x] === "1") ctx.fillRect(cx - 4 * PX * 1.25 + x * PX * 1.25, cy - 4 * PX + y * PX, PX * 1.25, PX);
+    }
+
+    function drawShip(ctx, k, x, y) {
+      const { colors } = k.retro;
+      ctx.fillStyle = colors.magenta;
+      ctx.fillRect(x - 24, y, 48, 12);
+      ctx.fillRect(x - 18, y - 6, 36, 6);
+      ctx.fillStyle = colors.gold;
+      ctx.fillRect(x - 3, y - 18, 6, 12);
+      ctx.fillStyle = colors.ink;
+      ctx.fillRect(x - 10, y + 3, 4, 4);
+      ctx.fillRect(x + 6, y + 3, 4, 4);
+    }
+
+    const STARS = Array.from({ length: 70 }, (_, i) => ({ x: (i * 137) % W, y: (i * 89) % H, s: 0.2 + (i % 5) * 0.15 }));
+    function drawStars(ctx, k) {
+      for (const st of STARS) {
+        const y = (st.y + k.frame * st.s) % H;
+        ctx.fillStyle = k.retro.alpha(k.retro.colors.ink, 0.2 + st.s * 0.4);
+        ctx.fillRect(st.x, y, 2, 2);
+      }
+    }
+
+    function miss() {
+      const s = game.ship;
+      burst(s.x, GROUND, kit.retro.colors.magenta, 30);
+      kit.sfx.explode();
+      game.bombs.length = 0;
+      if (kit.lives.lose() > 0) s.dead = 90;
+      else end(false);
+    }
+
+    function end(cleared) {
+      const total = WAVES * COLS * ROWS;
+      const killed = (game.wave - 1) * COLS * ROWS + game.inv.filter((e) => !e.alive).length;
+      kit.gameOver({ cleared, progress: cleared ? 100 : Math.floor((killed / total) * 100) });
+    }
+
+    document.querySelector(".sk-leaderboard").before(document.getElementById("how"));
+    window.kit = kit; // デバッグ用・playtest が読む（消さない）
+  </script>
+</body>
+</html>
