@@ -22,9 +22,11 @@
     <summary>遊び方</summary>
     <ul>
       <li>攻めてくるインベーダーを撃ち落とせ！ 上を飛ぶ UFO を撃つと、さらわれた CNP を救出できる</li>
+      <li>UFO には、まだ救出していない CNP が乗ってくる。撃ち逃しても、また来る。11体そろえると全員救出ボーナス</li>
+      <li>A（X / Space）を3秒押し続けて離すとレーザー。インベーダーを突き抜けて、まとめて倒せる。溜め切っている間は1回だけ攻撃を防ぐ</li>
       <li>3 WAVE 守り切ればクリア。インベーダーが地上まで降りてきたらおしまい</li>
-      <li>スマホ: 左半分を押したまま左右に倒して移動 ・ A でショット ・ ⚙ で音・全画面・自動連射の設定</li>
-      <li>PC: ← → / A D で移動 ・ X / Space でショット ・ V 自動連射 ・ P 一時停止 ・ M 音</li>
+      <li>スマホ: 左半分を押したまま左右に倒して移動 ・ A でショット（長押しでレーザー） ・ ⚙ で音・全画面・自動連射の設定</li>
+      <li>PC: ← → / A D で移動 ・ X / Space でショット（長押しでレーザー） ・ V 自動連射 ・ P 一時停止 ・ M 音</li>
     </ul>
   </details>
 
@@ -36,6 +38,9 @@
     const W = 960, H = 540;
     const COLS = 11, ROWS = 5, CELL_W = 52, CELL_H = 38, PX = 3;
     const GROUND = 500, WAVES = 3;
+    const CHARGE_FRAMES = 180; // A を 3 秒押し続けるとレーザーが溜まる（咲耶スクランブルと同じ）
+    const TAP_FRAMES = 8;      // これより短く離したら普通のショット
+    const BEAM_W = 40;         // レーザーの幅
 
     // 8x8 の2コマ。1 = 点
     const SPRITES = {
@@ -63,8 +68,12 @@
       game.bombs = [];
       game.sparks = [];
       game.ufo = null;
-      game.ufoTimer = 600;
+      game.ufoTimer = 300;
       game.ship = { x: W / 2, inv: 0, dead: 0 };
+      game.laser = { charging: false, frames: 0, pressAt: 0, shieldUsed: false, beam: null };
+      game.popups = [];
+      game.allRescued = 0;
+      game.notice = null;
       game.shields = makeShields();
       nextWave();
     }
@@ -102,6 +111,90 @@
       kit.sfx.shot();
     }
 
+    // ---- 長押しレーザー（咲耶スクランブルと同じ: タップ=ショット、3秒溜めて離す=レーザー） ----
+    function startCharge() {
+      const s = game.ship;
+      if (kit.phase !== "playing" || !s || s.dead) return fire();
+      game.laser.charging = true;
+      game.laser.frames = 0;
+      game.laser.pressAt = kit.frame;
+      game.laser.shieldUsed = false;
+      chargeSound.start();
+    }
+    function stopCharge() {
+      const L = game.laser;
+      chargeSound.stop();
+      if (!L || !L.charging) return;
+      if (L.frames >= CHARGE_FRAMES) fireBeam();
+      else if (kit.frame - L.pressAt <= TAP_FRAMES) fire();
+      L.charging = false;
+      L.frames = 0;
+    }
+    function resetCharge() {
+      chargeSound.stop();
+      if (game.laser) { game.laser.charging = false; game.laser.frames = 0; }
+    }
+    function fireBeam() {
+      const s = game.ship;
+      game.laser.beam = { x: s.x, head: GROUND - 20, t: 0, kills: 0 };
+      kit.sfx.tone({ freq: 1200, to: 180, dur: 0.5, type: "sawtooth", gain: 0.3 });
+      kit.sfx.noise({ dur: 0.4, gain: 0.16, filterFrom: 3000, filterTo: 300 });
+    }
+    // 溜め音: 低い音から 3 秒かけて上がる。途中で離したら止める
+    const chargeSound = {
+      node: null,
+      start() {
+        this.stop();
+        const S = kit.sfx;
+        if (!S.ctx || S.muted) return;
+        const t0 = S.ctx.currentTime;
+        const osc = S.ctx.createOscillator(), g = S.ctx.createGain();
+        osc.type = "sawtooth";
+        osc.frequency.setValueAtTime(110, t0);
+        osc.frequency.exponentialRampToValueAtTime(880, t0 + 3);
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.exponentialRampToValueAtTime(0.06, t0 + 0.08);
+        osc.connect(g).connect(S.master);
+        osc.start(t0);
+        osc.stop(t0 + 3.05);
+        this.node = { osc, g };
+      },
+      stop() {
+        const n = this.node, S = kit.sfx;
+        this.node = null;
+        if (!n || !S.ctx) return;
+        try {
+          const t = S.ctx.currentTime;
+          n.g.gain.cancelScheduledValues(t);
+          n.g.gain.setValueAtTime(Math.max(0.0001, n.g.gain.value), t);
+          n.g.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
+          n.osc.stop(t + 0.06);
+        } catch (e) { /* もう止まっている */ }
+      },
+    };
+
+    // ---- CNP の救出 ----
+    // UFO には、まだ救出していない CNP だけを乗せる（撃ち逃したキャラも、また乗って来る）
+    function nextCaptive() {
+      const left = kit.cnp.chars.filter((ch) => !kit.cnp.run.has(ch.no));
+      const pool = left.length ? left : kit.cnp.chars;
+      return pool[Math.floor(Math.random() * pool.length)];
+    }
+    function rescue(u) {
+      const first = kit.cnp.run.collect(u.ch.no);
+      kit.score.add(first ? 500 : 200);
+      burst(u.x, u.y, kit.retro.colors.gold, 30);
+      game.rescue = { ch: u.ch, x: u.x, y: u.y, t: 70 };
+      game.ufo = null;
+      kit.sfx.pickup();
+      if (first && kit.cnp.run.count === kit.cnp.chars.length) {
+        kit.score.add(5000);
+        game.allRescued = 200;
+        for (let i = 0; i < 6; i++) burst(160 + i * 128, 200 + (i % 2) * 80, kit.retro.colors.gold, 24);
+        kit.sfx.clear();
+      }
+    }
+
     function burst(x, y, color, n = 14) {
       for (let i = 0; i < n; i++) {
         const a = Math.random() * Math.PI * 2, v = 1 + Math.random() * 3;
@@ -131,22 +224,35 @@
         layout: "ab",
         keys: { left: ["ArrowLeft", "KeyA"], right: ["ArrowRight", "KeyD"], up: [], down: [] },
         buttons: [
-          { id: "fire", slot: "A", hint: "SHOT", ariaLabel: "ショット", keys: ["KeyX", "Space"], onPress: () => fire() },
+          // A: 短く押す=ショット、3秒押し続けて離す=レーザー（敵を突き抜ける）
+          { id: "fire", slot: "A", hint: "SHOT", ariaLabel: "ショット（長押しでレーザー）", keys: ["KeyX", "Space"],
+            onPress: () => startCharge(), onRelease: () => stopCharge() },
         ],
-        autoFire: { interval: 14, onFire: () => fire() },
+        // 自動連射はレーザーを溜めている間と撃っている間は止める
+        autoFire: { interval: 14, showOn: "fire", onFire: () => { if (!game.laser.charging && !game.laser.beam) fire(); } },
       },
       share: {
         when: "clear",
         text: (r) => `SAKUYA INVADERS をクリア！\nスコア ${r.score}\n救出 ${r.rescued.length}/11`,
       },
-      help: { pc: "← →で移動、X/Spaceでショット、Vで自動連射、Mで音（Pキーで一時停止）" },
+      help: {
+        pc: "← →で移動、X/Spaceでショット（3秒押して離すとレーザー）、Vで自動連射、Mで音（Pキーで一時停止）",
+        mobile: "左半分を押したまま倒して移動、A でショット・3秒長押しして離すとレーザー、⚙ で設定",
+      },
 
       onStart: reset,
+      // ポーズ・タブ切替などで入力が消えたら、レーザーの溜めも解く
+      onInputReset: () => resetCharge(),
       onExtend: () => kit.sfx.bonus(),
 
       update(k) {
         const s = game.ship;
         if (game.banner > 0) game.banner--;
+        if (game.allRescued > 0) game.allRescued--;
+        if (game.notice && --game.notice.t <= 0) game.notice = null;
+        const L = game.laser;
+        if (L.charging && !L.beam && !s.dead) L.frames = Math.min(CHARGE_FRAMES, L.frames + 1);
+        chargeGlow();
 
         // 自機
         if (s.dead > 0) {
@@ -182,12 +288,42 @@
         // UFO（CNP をさらって飛んでいる）
         if (!game.ufo && --game.ufoTimer <= 0) {
           const dir = Math.random() < 0.5 ? 1 : -1;
-          game.ufo = { x: dir > 0 ? -40 : W + 40, y: 78, dir, ch: k.cnp.run.pick() };
-          game.ufoTimer = 700 + Math.random() * 400;
+          game.ufo = { x: dir > 0 ? -40 : W + 40, y: 78, dir, ch: nextCaptive() };
+          game.ufoTimer = 420 + Math.random() * 180; // 7〜10 秒ごと
         }
         if (game.ufo) {
           game.ufo.x += game.ufo.dir * 2.2;
-          if (game.ufo.x < -60 || game.ufo.x > W + 60) game.ufo = null;
+          if (game.ufo.x < -60 || game.ufo.x > W + 60) {
+            if (!k.cnp.run.has(game.ufo.ch.no)) game.notice = { text: `${game.ufo.ch.label} を逃した… また来るよ`, t: 120 };
+            game.ufo = null;
+          }
+        }
+
+        // レーザー: 上へ伸びながら、通り道の敵・UFO・爆弾をまとめて消す（シールドは通り抜ける）
+        if (L.beam) {
+          const b = L.beam;
+          b.head -= 26;
+          b.t++;
+          for (const e of alive) {
+            if (e.alive && Math.abs(e.x - b.x) < BEAM_W / 2 + 14 && e.y >= b.head) {
+              e.alive = false;
+              b.kills++;
+              k.score.add(ROW_PTS[e.r] * game.wave);
+              burst(e.x, e.y, e.r === 0 ? k.retro.colors.magenta : k.retro.colors.ink);
+            }
+          }
+          game.bombs = game.bombs.filter((bm) => !(Math.abs(bm.x - b.x) < BEAM_W / 2 + 6 && bm.y >= b.head));
+          const u = game.ufo;
+          if (u && Math.abs(u.x - b.x) < BEAM_W / 2 + 34 && u.y >= b.head) rescue(u);
+          if (b.head < 30 && b.t > 24) {
+            if (b.kills >= 2) {
+              const bonus = (b.kills - 1) * 50 * game.wave;
+              k.score.add(bonus);
+              game.popups.push({ x: b.x, y: 140, text: `${b.kills} HIT! +${bonus}`, t: 80 });
+            }
+            if (b.kills) k.sfx.explode();
+            L.beam = null;
+          }
         }
 
         // 自機の弾
@@ -205,12 +341,7 @@
           }
           const u = game.ufo;
           if (u && Math.abs(u.x - b.x) < 34 && Math.abs(u.y - b.y) < 24) {
-            const first = k.cnp.run.collect(u.ch.no);
-            k.score.add(first ? 500 : 200);
-            burst(u.x, u.y, k.retro.colors.gold, 30);
-            game.rescue = { ch: u.ch, x: u.x, y: u.y, t: 70 };
-            game.ufo = null;
-            k.sfx.pickup();
+            rescue(u);
             return false;
           }
           return true;
@@ -237,6 +368,8 @@
         for (const p of game.sparks) { p.x += p.vx; p.y += p.vy; p.vy += 0.05; p.t--; }
         game.sparks = game.sparks.filter((p) => p.t > 0);
         if (game.rescue && --game.rescue.t <= 0) game.rescue = null;
+        for (const pp of game.popups) { pp.y -= 0.5; pp.t--; }
+        game.popups = game.popups.filter((pp) => pp.t > 0);
 
         // 全滅させたら次の WAVE
         if (!alive.length) {
@@ -244,6 +377,7 @@
           k.sfx.stage();
           if (game.wave >= WAVES) {
             k.score.add(k.lives.value * 1000 + k.cnp.run.count * 300);
+            resetCharge();
             return end(true);
           }
           nextWave();
@@ -334,7 +468,22 @@
 
         // 咲耶の砲台
         const s = game.ship;
+        drawLaser(ctx, k);
         if (!s.dead && !(s.inv > 0 && k.frame % 8 < 4)) drawShip(ctx, k, s.x, GROUND);
+
+        // 何体まとめて倒したか、逃した CNP のお知らせ
+        ctx.textAlign = "center";
+        for (const pp of game.popups) {
+          ctx.font = k.retro.font(14);
+          ctx.fillStyle = k.retro.alpha(colors.gold, Math.min(1, pp.t / 20));
+          ctx.fillText(pp.text, pp.x, pp.y);
+        }
+        if (game.notice) {
+          ctx.font = k.retro.fontBody(16);
+          ctx.fillStyle = k.retro.alpha(colors.dim, Math.min(1, game.notice.t / 20));
+          ctx.fillText(game.notice.text, W / 2, 118);
+        }
+        ctx.textAlign = "left";
 
         k.hud.score();
         k.hud.roster();
@@ -345,7 +494,8 @@
         ctx.fillText(`WAVE ${game.wave}/${WAVES}`, W - 16, 80);
         ctx.textAlign = "left";
 
-        if (game.banner > 0 && k.phase === "playing") k.retro.caption(`WAVE ${game.wave}`, game.wave === WAVES ? "最終WAVE！" : "UFO を撃って CNP を救出しよう");
+        if (game.allRescued > 0 && k.phase === "playing") k.retro.caption("ALL RESCUE!", "CNP 11体 全員救出！ ボーナス +5000");
+        else if (game.banner > 0 && k.phase === "playing") k.retro.caption(`WAVE ${game.wave}`, game.wave === WAVES ? "最終WAVE！" : "UFO を撃って CNP を救出しよう");
       },
     });
 
@@ -380,6 +530,15 @@
 
     function miss() {
       const s = game.ship;
+      const L = game.laser;
+      // 溜め切っている間は1回だけ身代わりになる（咲耶スクランブルと同じ）
+      if (L.charging && L.frames >= CHARGE_FRAMES && !L.shieldUsed) {
+        L.shieldUsed = true;
+        burst(s.x, GROUND - 10, kit.retro.colors.ink, 20);
+        kit.sfx.hit();
+        return;
+      }
+      resetCharge();
       burst(s.x, GROUND, kit.retro.colors.magenta, 30);
       kit.sfx.explode();
       game.bombs.length = 0;
@@ -387,7 +546,61 @@
       else end(false);
     }
 
+    // A ボタンの縁を、溜め具合に合わせて光らせる
+    function chargeGlow() {
+      const el = kit.buttonEl("fire");
+      if (!el) return;
+      const L = game.laser, pct = L.frames / CHARGE_FRAMES;
+      if (L.charging && pct > 0 && !L.beam) {
+        el.style.boxShadow = `0 0 ${6 + pct * 22}px rgba(255,45,155,${0.4 + pct * 0.6})`;
+        el.style.borderColor = `hsl(${190 + pct * 30},100%,70%)`;
+      } else {
+        el.style.boxShadow = "";
+        el.style.borderColor = "";
+      }
+    }
+
+    function drawLaser(ctx, k) {
+      const L = game.laser, s = game.ship;
+      if (L.charging && L.frames > 0 && !L.beam && !s.dead) {
+        const pct = L.frames / CHARGE_FRAMES;
+        ctx.save();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = k.retro.alpha(k.retro.colors.magenta, 0.5 + 0.5 * pct);
+        ctx.beginPath();
+        ctx.arc(s.x, GROUND - 2, 34 + pct * 6, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * pct);
+        ctx.stroke();
+        if (pct >= 1) {
+          ctx.globalAlpha = 0.3 + 0.3 * Math.sin(k.frame * 0.4);
+          ctx.fillStyle = k.retro.alpha(k.retro.colors.magenta, 0.35);
+          ctx.beginPath();
+          ctx.arc(s.x, GROUND - 2, 44, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+      if (!L.beam) return;
+      const b = L.beam, top = Math.max(0, b.head), bottom = GROUND - 18;
+      const fade = b.head < 30 ? Math.max(0.2, 1 - (b.t - 18) / 12) : 1;
+      ctx.save();
+      ctx.globalAlpha = fade;
+      const glow = ctx.createLinearGradient(0, bottom, 0, top);
+      glow.addColorStop(0, "rgba(255,45,155,0)");
+      glow.addColorStop(0.15, "rgba(255,45,155,0.55)");
+      glow.addColorStop(1, "rgba(255,170,225,0.4)");
+      ctx.fillStyle = glow;
+      ctx.fillRect(b.x - BEAM_W / 2, top, BEAM_W, bottom - top);
+      const core = ctx.createLinearGradient(0, bottom, 0, top);
+      core.addColorStop(0, "rgba(255,210,240,0)");
+      core.addColorStop(0.2, "rgba(255,255,255,0.95)");
+      core.addColorStop(1, "rgba(255,255,255,1)");
+      ctx.fillStyle = core;
+      ctx.fillRect(b.x - 5, top, 10, bottom - top);
+      ctx.restore();
+    }
+
     function end(cleared) {
+      resetCharge();
       const total = WAVES * COLS * ROWS;
       const killed = (game.wave - 1) * COLS * ROWS + game.inv.filter((e) => !e.alive).length;
       kit.gameOver({ cleared, progress: cleared ? 100 : Math.floor((killed / total) * 100) });
