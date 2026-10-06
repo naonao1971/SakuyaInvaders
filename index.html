@@ -97,7 +97,7 @@
       game.sparks = [];
       game.ufo = null;
       game.ufoTimer = 300;
-      game.ship = { x: W / 2, inv: 0, dead: 0 };
+      game.ship = { x: W / 2, inv: 0, dead: 0, dir: -1, face: -1, run: 0 };
       game.laser = { charging: false, frames: 0, pressAt: 0, shieldUsed: false, beam: null };
       game.popups = [];
       game.allRescued = 0;
@@ -293,7 +293,15 @@
         } else {
           const nx = Math.max(40, Math.min(W - 40, s.x + k.input.axis().x * 6));
           s.moving = Math.abs(nx - s.x) > 0.5;
-          if (s.moving) s.walk = (s.walk || 0) + 1;
+          if (s.moving) {
+            s.walk = (s.walk || 0) + 1;
+            // 動いた向き（-1 左 / 1 右）。止まっても最後の向きを残す。
+            // 見た目の向き（face）は、同じ向きに 6 フレーム続けて動いてから切り替える（小刻みに動かしてもチカチカしない）
+            const d = nx > s.x ? 1 : -1;
+            s.run = d === s.dir ? s.run + 1 : 1;
+            s.dir = d;
+            if (s.run >= 6) s.face = s.dir;
+          }
           s.x = nx;
           if (s.inv > 0) s.inv--;
         }
@@ -567,10 +575,35 @@
     const SAKUYA_CY = 18 - 7 * SAKUYA_SCALE; // 体の中心の GROUND からの高さ（絵の下端 = 中心 + 7ドット）
     const SAKUYA_TOP = SAKUYA_CY - 9 * SAKUYA_SCALE; // 頭のてっぺん（レーザーの出どころ）
     const SAKUYA_HAND = SAKUYA_CY + 2 * SAKUYA_SCALE; // 手の高さ（棒手裏剣の出どころ）
+    // 走っている感じ: 後ろ姿のまま、リボンが進む方向の逆側に来るよう右向きのときだけ左右反転し、
+    // 動いている間は頭（地図の上から9行）だけを進む方向へ1ドットずらして前のめりにする。
+    // 回転はせず、絵を上下2回に分けて切り出して描くのでドットは崩れない。当たり判定と弾の出どころは動かさない
+    const SAKUYA_HEAD_ROWS = 9;
     function drawShip(ctx, k, x, y) {
       const s = game.ship;
       const frame = s && s.moving ? Math.floor(s.walk / 8) % 2 : 0;
-      drawSakuya(ctx, k, x, y + SAKUYA_CY, { x: 0, y: -1 }, frame, SAKUYA_SCALE);
+      const flip = s ? s.face > 0 : false;
+      const lean = s && s.moving ? s.dir : 0;
+      if (!sakuyaSprites) sakuyaSprites = buildSakuya(k);
+      const img = sakuyaSprites.up[frame];
+      const S = SAKUYA_SCALE, w = img.width * S, h = img.height * S;
+      const split = SAKUYA_HEAD_ROWS + 1; // 絵の上下には1ドットのふちがある
+      const top = -h / 2 - S;
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
+      ctx.translate(Math.round(x), Math.round(y + SAKUYA_CY));
+      // 頭（進む方向へ lean ドット）
+      ctx.save();
+      ctx.translate(lean * S, 0);
+      if (flip) ctx.scale(-1, 1);
+      ctx.drawImage(img, 0, 0, img.width, split, -w / 2, top, w, split * S);
+      ctx.restore();
+      // 体と足（ずらさない）
+      ctx.save();
+      if (flip) ctx.scale(-1, 1);
+      ctx.drawImage(img, 0, split, img.width, img.height - split, -w / 2, top + split * S, w, h - split * S);
+      ctx.restore();
+      ctx.restore();
     }
 
     // ===== 咲耶のドット絵（咲耶ディグの index.html からそのまま。drawSprite だけ drawSakuyaSprite に改名） =====
