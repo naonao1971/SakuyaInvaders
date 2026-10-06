@@ -135,7 +135,7 @@
     function fire() {
       const s = game.ship;
       if (!s || s.dead || game.shots.length >= 2) return;
-      game.shots.push({ x: s.x, y: GROUND - 22 });
+      game.shots.push({ x: s.x, y: GROUND + SAKUYA_HAND });
       kit.sfx.shot();
     }
 
@@ -291,7 +291,10 @@
         if (s.dead > 0) {
           if (--s.dead === 0) { s.x = W / 2; s.inv = 120; }
         } else {
-          s.x = Math.max(40, Math.min(W - 40, s.x + k.input.axis().x * 6));
+          const nx = Math.max(40, Math.min(W - 40, s.x + k.input.axis().x * 6));
+          s.moving = Math.abs(nx - s.x) > 0.5;
+          if (s.moving) s.walk = (s.walk || 0) + 1;
+          s.x = nx;
           if (s.inv > 0) s.inv--;
         }
 
@@ -502,7 +505,7 @@
 
         // 弾
         ctx.fillStyle = colors.gold;
-        for (const b of game.shots) ctx.fillRect(b.x - 1.5, b.y - 8, 3, 14);
+        for (const b of game.shots) drawBoShuriken(ctx, k, b.x, b.y);
         ctx.fillStyle = colors.magenta;
         for (const b of game.bombs) {
           const zig = (b.t >> 2) % 2 ? 3 : -3;
@@ -517,7 +520,7 @@
           ctx.fillRect(p.x - 2, p.y - 2, 4, 4);
         }
 
-        // 咲耶の砲台
+        // 自機（ちび咲耶）
         const s = game.ship;
         drawLaser(ctx, k);
         if (!s.dead && !(s.inv > 0 && k.frame % 8 < 4)) drawShip(ctx, k, s.x, GROUND);
@@ -558,17 +561,128 @@
           if (rows[y][x] === "1") ctx.fillRect(cx - 4 * PX * 1.25 + x * PX * 1.25, cy - 4 * PX + y * PX, PX * 1.25, PX);
     }
 
+    // 自機はちび咲耶（後ろ姿でインベーダーに向かって立つ）。y は GROUND。足が地面のライン（GROUND + 18）に乗る
+    // 1ドット 3px で 14x16 ドット = 42x48px。左右に動いている間は2コマで歩く
+    const SAKUYA_SCALE = 3;
+    const SAKUYA_CY = 18 - 7 * SAKUYA_SCALE; // 体の中心の GROUND からの高さ（絵の下端 = 中心 + 7ドット）
+    const SAKUYA_TOP = SAKUYA_CY - 9 * SAKUYA_SCALE; // 頭のてっぺん（レーザーの出どころ）
+    const SAKUYA_HAND = SAKUYA_CY + 2 * SAKUYA_SCALE; // 手の高さ（棒手裏剣の出どころ）
     function drawShip(ctx, k, x, y) {
-      const { colors } = k.retro;
-      ctx.fillStyle = colors.magenta;
-      ctx.fillRect(x - 24, y, 48, 12);
-      ctx.fillRect(x - 18, y - 6, 36, 6);
-      ctx.fillStyle = colors.gold;
-      ctx.fillRect(x - 3, y - 18, 6, 12);
-      ctx.fillStyle = colors.ink;
-      ctx.fillRect(x - 10, y + 3, 4, 4);
-      ctx.fillRect(x + 6, y + 3, 4, 4);
+      const s = game.ship;
+      const frame = s && s.moving ? Math.floor(s.walk / 8) % 2 : 0;
+      drawSakuya(ctx, k, x, y + SAKUYA_CY, { x: 0, y: -1 }, frame, SAKUYA_SCALE);
     }
+
+    // ===== 咲耶のドット絵（咲耶ディグの index.html からそのまま。drawSprite だけ drawSakuyaSprite に改名） =====
+    // 設定画を 12x14 のドットに落としたもの（1ドット = 2px）。黒髪の高いポニーテールに赤いリボン、
+    // ピンクの着物に黒い衿と帯・金の紐、黒い籠手と短パン・ブーツ。色は kit の色から作る。
+    //   K 髪  H 髪のつや  R リボン  S 肌  E 目  P ピンク  B 黒い布  G 金の紐
+    const SAKUYA_MAPS = {
+      down: [
+        "....KKKK.RR.",
+        "..KKKKKKRRRR",
+        ".KKHHKKKKKRR",
+        ".KKKKKKKKKKR",
+        ".KKKSKKSKKKR",
+        ".KSSSSSSSSKK",
+        ".KSEESSEESKK",
+        ".KSEESSEESKK",
+        "..SSSSSSSS.K",
+        "..PBPPPPBP.K",
+        "SBPPBPPBPPBS",
+        ".BBBGBBGBBB.",
+        "..PPPPPPPP..",
+        ["..BBB..BBB..", "..BBB...BB.."],
+      ],
+      right: [
+        "...KKKK.....",
+        ".RRKKKKKK...",
+        "RRKKKKHKKK..",
+        "RKKKKKKKKKK.",
+        "KKKKKKKKKSK.",
+        "KKKKKKKSSSS.",
+        "KKKKKKKSSES.",
+        "KKKKKKKSSES.",
+        "KKK..KSSSSS.",
+        "KK....BPPS..",
+        "KK...PBPPBS.",
+        "K....BGBBP..",
+        "K....PPPPP..",
+        [".....BB.BB..", "....BB...BB."],
+      ],
+      up: [
+        "....KKKK....",
+        "..KKKRRKK...",
+        ".KRRRRRRRK..",
+        ".KKKKKKRRRR.",
+        ".KKKKKKKKRR.",
+        ".KKKHKKKKKK.",
+        ".KKKKKKKKKK.",
+        ".KKKKKKKKKK.",
+        "..KKKKKKKK..",
+        "..PKKKKKKP..",
+        "SBPKKKKKKPBS",
+        ".BBBBKKBBBB.",
+        "..PPPKKPPP..",
+        ["..BBB..BBB..", "..BBB...BB.."],
+      ],
+    };
+    let sakuyaSprites = null;
+    // ドットの地図（文字列の配列）を 1ドット = 1px の canvas にする。まわりに 1ドットのふちを付ける
+    // （暗い通路でも黒い体の形が見えるように）。pal は文字ごとに重ねて塗る色の配列
+    function makeSprite(lines, pal, outline) {
+      const w = Math.max(...lines.map((l) => l.length)), h = lines.length;
+      const cv = document.createElement("canvas");
+      cv.width = w + 2;
+      cv.height = h + 2;
+      const g = cv.getContext("2d");
+      const cells = [];
+      lines.forEach((line, y) => [...line].forEach((ch, x) => { if (ch !== ".") cells.push([x + 1, y + 1, ch]); }));
+      g.fillStyle = outline;
+      for (const [x, y] of cells) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) g.fillRect(x + dx, y + dy, 1, 1);
+      for (const [x, y, ch] of cells) {
+        for (const col of pal[ch]) {
+          g.fillStyle = col;
+          g.fillRect(x, y, 1, 1);
+        }
+      }
+      return cv;
+    }
+    // 2コマの地図（行が [0コマ目, 1コマ目] の配列になっているところだけ入れ替える）から、向きごとの絵を作る
+    function makeSprites(maps, pal, outline) {
+      const out = {};
+      for (const [dir, rows] of Object.entries(maps)) {
+        out[dir] = [0, 1].map((frame) => makeSprite(rows.map((r) => (Array.isArray(r) ? r[frame] : r)), pal, outline));
+      }
+      return out;
+    }
+    function buildSakuya(k) {
+      const c = k.retro.colors, a = k.retro.alpha;
+      // 黒は背景に沈むので、髪と黒い布は少し青みの灰色に持ち上げる。肌は白に金と桃を重ねて温かく
+      const pal = {
+        K: [c.bg, a(c.dim, 0.5)], H: [c.dim], R: [c.danger], S: [c.ink, a(c.gold, 0.35), a(c.magenta, 0.08)],
+        E: [c.bg], P: [c.magenta], B: [c.bg, a(c.dim, 0.24)], G: [c.gold],
+      };
+      return makeSprites(SAKUYA_MAPS, pal, a(c.ink, 0.4));
+    }
+    // 向き（face）から絵を選んで (x, y) を中心に描く。左向きは右向きを裏返す
+    function drawSakuyaSprite(ctx, sprites, x, y, face, frame, scale) {
+      const dir = face.y < 0 ? "up" : face.y > 0 ? "down" : "right";
+      const img = sprites[dir][frame];
+      const w = img.width * scale, h = img.height * scale;
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
+      ctx.translate(Math.round(x), Math.round(y));
+      if (face.x < 0) ctx.scale(-1, 1);
+      ctx.drawImage(img, -w / 2, -h / 2 - scale, w, h);
+      ctx.restore();
+    }
+    // (x, y) は体の中心。scale は1ドットの大きさ（ゲーム中は 2）
+    function drawSakuya(ctx, k, x, y, face, frame, scale) {
+      if (!sakuyaSprites) sakuyaSprites = buildSakuya(k);
+      drawSakuyaSprite(ctx, sakuyaSprites, x, y, face, frame, scale);
+    }
+
 
     const STARS = Array.from({ length: 70 }, (_, i) => ({ x: (i * 137) % W, y: (i * 89) % H, s: 0.2 + (i % 5) * 0.15 }));
     function drawStars(ctx, k) {
@@ -611,27 +725,52 @@
       }
     }
 
+    // 棒手裏剣: 先端を上に向けたまま、まっすぐ飛ぶ細い鉄の棒（ドット風）。(x, y) は今までの弾と同じ中心
+    // 当たり判定は今までどおり弾の中心だけで見る（絵は見た目だけ）
+    function drawBoShuriken(ctx, k, x, y) {
+      const { colors } = k.retro;
+      const bx = Math.round(x) - 1, top = Math.round(y) - 8;
+      ctx.fillStyle = k.retro.alpha(colors.ink, 0.22); // 後ろに短い残像
+      ctx.fillRect(bx + 0.5, top + 15, 1, 12);
+      ctx.fillStyle = colors.gold;                     // とがった先端（金で光らせる）
+      ctx.fillRect(bx + 0.5, top, 1, 1);
+      ctx.fillRect(bx, top + 1, 2, 2);
+      ctx.fillStyle = colors.ink;                      // 棒
+      ctx.fillRect(bx, top + 3, 2, 9);
+      ctx.fillStyle = colors.danger;                   // 後ろの端に巻いた布（房）
+      ctx.fillRect(bx - 0.5, top + 11, 3, 3);
+    }
+
     function drawLaser(ctx, k) {
       const L = game.laser, s = game.ship;
       if (L.charging && L.frames > 0 && !L.beam && !s.dead) {
+        // 溜め: 咲耶の体のまわりに金の輪が伸びていき、溜め切ると輪が光ってバリアになる
         const pct = L.frames / CHARGE_FRAMES;
+        const cx = s.x, cy = GROUND + SAKUYA_CY, r = 32;
         ctx.save();
         ctx.lineWidth = 3;
-        ctx.strokeStyle = k.retro.alpha(k.retro.colors.magenta, 0.5 + 0.5 * pct);
+        ctx.strokeStyle = k.retro.alpha(k.retro.colors.gold, 0.5 + 0.5 * pct);
         ctx.beginPath();
-        ctx.arc(s.x, GROUND - 2, 34 + pct * 6, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * pct);
+        ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * pct);
         ctx.stroke();
         if (pct >= 1) {
-          ctx.globalAlpha = 0.3 + 0.3 * Math.sin(k.frame * 0.4);
-          ctx.fillStyle = k.retro.alpha(k.retro.colors.magenta, 0.35);
+          const pulse = 0.5 + 0.5 * Math.sin(k.frame * 0.3);
+          ctx.fillStyle = k.retro.alpha(k.retro.colors.gold, 0.08 + 0.08 * pulse);
           ctx.beginPath();
-          ctx.arc(s.x, GROUND - 2, 44, 0, Math.PI * 2);
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
           ctx.fill();
+          ctx.shadowColor = k.retro.colors.gold;
+          ctx.shadowBlur = 10 + 8 * pulse;
+          ctx.lineWidth = 2 + pulse;
+          ctx.strokeStyle = k.retro.alpha(k.retro.colors.gold, 0.7 + 0.3 * pulse);
+          ctx.beginPath();
+          ctx.arc(cx, cy, r + 2, 0, Math.PI * 2);
+          ctx.stroke();
         }
         ctx.restore();
       }
       if (!L.beam) return;
-      const b = L.beam, top = Math.max(0, b.head), bottom = GROUND - 18;
+      const b = L.beam, top = Math.max(0, b.head), bottom = GROUND + SAKUYA_TOP + 6; // 咲耶の頭の上から出す（根元の薄いところを頭に重ねる）
       const fade = b.head < 30 ? Math.max(0.2, 1 - (b.t - 18) / 12) : 1;
       ctx.save();
       ctx.globalAlpha = fade;
