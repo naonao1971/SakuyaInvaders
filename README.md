@@ -31,6 +31,8 @@
 | `docs/WAIWAI.md` | わいわいタウン掲載パック（紹介文・操作・タグ・告知文）。スクリーンショットは `docs/waiwai/` |
 | `docs/PLAN.md` | 企画書（決まったこと・まだのこと） |
 | `promo/sakuya-invaders-making.mp4` | 「ゲーム、ポン出し。」紹介動画（77秒・1080p） |
+| `tools/icon.mjs` | アイコン（インベーダー）を書き出す |
+| `CLAUDE.md` | 直し方の決まり（PR で直す・kit の版の上げ方） |
 | `tools/video/` | 紹介動画を作ったスクリプト（自動操縦の録画・編集画面・BGM） |
 
 本作は CryptoNinja / CryptoNinja Partners の非公式ファンアートです。
