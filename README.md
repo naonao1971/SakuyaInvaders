@@ -28,6 +28,7 @@
 | `index.html` | ゲーム本体（kit は jsDelivr の `sakuya-kit@0.6.3` から読む） |
 | `keyvisual.jpg` | キービジュアル（タイトル画面・縦持ち案内・OGP の元） |
 | `sw.js` | 機内モードでも遊べるようにする Service Worker（kit の sw-core.js を読むだけ） |
+| `docs/WAIWAI.md` | わいわいタウン掲載パック（紹介文・操作・タグ・告知文）。スクリーンショットは `docs/waiwai/` |
 | `docs/PLAN.md` | 企画書（決まったこと・まだのこと） |
 | `promo/sakuya-invaders-making.mp4` | 「ゲーム、ポン出し。」紹介動画（77秒・1080p） |
 | `tools/video/` | 紹介動画を作ったスクリプト（自動操縦の録画・編集画面・BGM） |
