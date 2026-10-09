@@ -1,7 +1,7 @@
 # 咲耶インベーダー（SAKUYA INVADERS ─ SAVE 11 CNP）
 
 インベーダーにさらわれた CNP 11体を救い出す、咲耶シリーズのブラウザゲームです。
-共通部分は [咲耶ゲームフレームワーク（sakuya-kit）](https://github.com/naonao1971/sakuya-kit) 0.6.3 を使っています。
+共通部分は [咲耶ゲームフレームワーク（sakuya-kit）](https://github.com/naonao1971/sakuya-kit) 0.7.0 を使っています。
 
 ## 遊び方
 
@@ -25,7 +25,7 @@
 
 | | |
 |---|---|
-| `index.html` | ゲーム本体（kit は jsDelivr の `sakuya-kit@0.6.3` から読む） |
+| `index.html` | ゲーム本体（kit は jsDelivr の `sakuya-kit@0.7.0` から読む） |
 | `keyvisual.jpg` | キービジュアル（タイトル画面・縦持ち案内・OGP の元） |
 | `sw.js` | 機内モードでも遊べるようにする Service Worker（kit の sw-core.js を読むだけ） |
 | `docs/WAIWAI.md` | わいわいタウン掲載パック（紹介文・操作・タグ・告知文）。スクリーンショットは `docs/waiwai/` |

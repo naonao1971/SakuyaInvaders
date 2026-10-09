@@ -18,7 +18,7 @@
 
 ## sakuya-kit の版
 
-- いまは `sakuya-kit@0.6.3`。`index.html` の `kit.js` と `kit.css` の2か所を、**必ず同じ版**にする（`sw.js` は書き換えない）
+- いまは `sakuya-kit@0.7.0`。`index.html` の `kit.js` と `kit.css` の2か所を、**必ず同じ版**にする（`sw.js` は書き換えない）
 - sakuya-kit の新しい版が出たら、このタイトルにも版を上げる PR を出す（ほかの咲耶シリーズと一緒に）。
   kit の `CHANGELOG.md` を読み、このタイトルで設定の書き換えが要るか確かめてから上げる
 - kit が受け持つ部品（操作・ポーズ・HUD・ランキング・結果画面・効果音など）のバグは、ここで直さず sakuya-kit 側で直す。
